@@ -27,9 +27,37 @@ public:
 	))
 	static void SetArrayElement(const TArray<int32>& TargetArray, const int32& NewItem, const int32 Index);
 
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(
+		DisplayName = "Shift Left",
+		CompactNodeTitle = "SHIFT LEFT",
+		ArrayParm = "TargetArray",
+		ArrayTypeDependentParams = "ValueToInsertAtEnd",
+		AutoCreateRefTerm = "ValueToInsertAtEnd"),
+		Category="CF|Array|Shift")
+	static void ShiftArrayElementsLeft(
+		const TArray<int32>& TargetArray,
+		const int32& ValueToInsertAtEnd,
+		const int32 ShiftAmount = 1);
+
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(
+		DisplayName = "Shift Right",
+		CompactNodeTitle = "SHIFT RIGHT",
+		ArrayParm = "TargetArray",
+		ArrayTypeDependentParams = "ValueToInsertAtStart",
+		AutoCreateRefTerm = "ValueToInsertAtStart"),
+		Category="CF|Array|Shift")
+	static void ShiftArrayElementsRight(
+		const TArray<int32>& TargetArray,
+		const int32& ValueToInsertAtStart,
+		const int32 ShiftAmount = 1);
+
 	//Step 2: Create Native functions that will be called by the CustomThunk. This reads off property address, and calls the appropriate native handler
 	static void GenericSetArrayElement(void* TargetArray, const FArrayProperty* ArrayProp,
 	                                   const void* NewItem, const int32 Index);
+	static void GenericShiftArrayElementsLeft(void* TargetArray, const FArrayProperty* ArrayProp,
+											  const void* ValueToInsertAtEnd, int32 ShiftAmount);
+	static void GenericShiftArrayElementsRight(void* TargetArray, const FArrayProperty* ArrayProp,
+											   const void* ValueToInsertAtStart, int32 ShiftAmount);
 
 	//Step 3: create an exec function that will be called by the custom thunk
 	DECLARE_FUNCTION(execSetArrayElement)
@@ -92,5 +120,102 @@ public:
 		InnerProp->DestroyValue(StorageSpace);
 	}
 
+	DECLARE_FUNCTION(execShiftArrayElementsLeft)
+	{
+		// Initialize the most recent property to null
+		Stack.MostRecentProperty = nullptr;
+
+		// Step through the compiled array property
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+
+		// Get the address of the most recent property
+		void* ArrayAddr = Stack.MostRecentPropertyAddress;
+
+		// Cast the most recent property to an FArrayProperty
+		const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+
+		// If the property is not an array, mark the context as failed and return
+		if (!ArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+
+		// Since ValueToInsertAtEnd isn't really an int, step the stack manually
+		const FProperty* InnerProp = ArrayProperty->Inner;
+		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		void* StorageSpace = FMemory_Alloca(PropertySize);
+		InnerProp->InitializeValue(StorageSpace);
+
+		Stack.MostRecentPropertyAddress = nullptr;
+		Stack.MostRecentPropertyContainer = nullptr;
+		Stack.StepCompiledIn<FProperty>(StorageSpace);
+		
+		// Read the shift amount from the stack
+		P_GET_PROPERTY(FIntProperty, ShiftAmount);
+
+		// Mark the end of the parameter reading
+		P_FINISH;
+
+		// Begin the native function call
+		P_NATIVE_BEGIN;
+
+		// Call the generic function to shift array elements
+		GenericShiftArrayElementsLeft(ArrayAddr, ArrayProperty, StorageSpace, ShiftAmount);
+
+		// End the native function call
+		P_NATIVE_END;
+		
+		InnerProp->DestroyValue(StorageSpace);
+	}
+
+	DECLARE_FUNCTION(execShiftArrayElementsRight)
+	{
+		// Initialize the most recent property to null
+		Stack.MostRecentProperty = nullptr;
+
+		// Step through the compiled array property
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+
+		// Get the address of the most recent property
+		void* ArrayAddr = Stack.MostRecentPropertyAddress;
+
+		// Cast the most recent property to an FArrayProperty
+		const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+
+		// If the property is not an array, mark the context as failed and return
+		if (!ArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+
+		// Since ValueToInsertAtEnd isn't really an int, step the stack manually
+		const FProperty* InnerProp = ArrayProperty->Inner;
+		const int32 PropertySize = InnerProp->ElementSize * InnerProp->ArrayDim;
+		void* StorageSpace = FMemory_Alloca(PropertySize);
+		InnerProp->InitializeValue(StorageSpace);
+
+		Stack.MostRecentPropertyAddress = nullptr;
+		Stack.MostRecentPropertyContainer = nullptr;
+		Stack.StepCompiledIn<FProperty>(StorageSpace);
+		
+		// Read the shift amount from the stack
+		P_GET_PROPERTY(FIntProperty, ShiftAmount);
+
+		// Mark the end of the parameter reading
+		P_FINISH;
+
+		// Begin the native function call
+		P_NATIVE_BEGIN;
+
+		// Call the generic function to shift array elements
+		GenericShiftArrayElementsRight(ArrayAddr, ArrayProperty, StorageSpace, ShiftAmount);
+
+		// End the native function call
+		P_NATIVE_END;
+		
+		InnerProp->DestroyValue(StorageSpace);
+	}
 	
 };
